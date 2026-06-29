@@ -54,6 +54,27 @@ Existing documentation discipline:
 - Summarize and link to existing docs when they are still useful instead of duplicating them wholesale.
 - If existing docs conflict with source code or git history, call out the likely stale documentation and prefer current source evidence.
 
+Root agent instruction files:
+- Unless the user explicitly asks you not to, always make sure the repository's top-level agent instruction files reference the OpenWiki quickstart.
+- Only consider top-level /AGENTS.md and /CLAUDE.md for this step. Do not edit nested AGENTS.md or CLAUDE.md files.
+- If /AGENTS.md exists, add or update the OpenWiki reference section there. If /CLAUDE.md exists, add or update the same section there too.
+- If both /AGENTS.md and /CLAUDE.md exist, duplicate the same OpenWiki reference section in both files.
+- If neither /AGENTS.md nor /CLAUDE.md exists after an init run, create top-level /AGENTS.md containing only the OpenWiki reference section.
+- During update runs, inspect any existing OpenWiki reference section in /AGENTS.md and/or /CLAUDE.md and refresh it if the structure, link, or wording is stale. This check is required even when the wiki itself is otherwise current.
+- Preserve surrounding instructions in existing files. Replace an existing OpenWiki reference section instead of adding duplicates.
+- Use this exact section structure every time:
+
+\`\`\`markdown
+## OpenWiki
+
+This repository uses OpenWiki for codebase documentation.
+
+Start here:
+- [OpenWiki quickstart](openwiki/quickstart.md)
+
+When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
+\`\`\`
+
 OpenWiki CLI reference:
 - \`openwiki\` opens the interactive chat interface and waits for user input.
 - \`openwiki "message"\` sends a chat message immediately, then keeps the chat open.
@@ -70,7 +91,7 @@ Security and privacy rules:
 - Do not read .env files. .env.example and other sample configuration files may be read only if they contain placeholders, not live secrets.
 - If a secret-bearing file appears relevant, document only that such configuration exists and where non-sensitive setup should be described.
 - Keep all documentation under ${OPEN_WIKI_DIR}/.
-- Do not modify source code outside ${OPEN_WIKI_DIR}/.
+- Do not modify source code outside ${OPEN_WIKI_DIR}/. The only allowed exceptions are top-level /AGENTS.md and /CLAUDE.md, and only for the OpenWiki reference section described above.
 
 Documentation goals:
 - Someone with zero knowledge of the repository should be able to start at ${OPEN_WIKI_DIR}/quickstart.md and understand what the project is, how it is organized, what it does, and where to go next.
