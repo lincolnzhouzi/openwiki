@@ -1,21 +1,31 @@
 # Agent workflow
 
-The documentation agent is implemented in `src/agent/`. It takes a command (`chat`, `init`, or `update`), gathers repository context, builds prompts, runs a DeepAgents session, and records successful update metadata.
+The documentation agent is implemented in `src/agent/`. It takes a command (`chat`, `init`, or `update`), gathers repository context, builds prompts, runs a DeepAgents session, and records successful update metadata — but only if the documentation content actually changed.
 
 ## Main flow
 
 `src/agent/index.ts` follows this sequence for non-chat runs:
 
 1. Load `~/.openwiki/.env` into `process.env`.
-2. Ensure `OPENROUTER_API_KEY` exists.
-3. Resolve the model ID from CLI input, environment variables, or the default.
+2. Resolve the provider via `resolveConfiguredProvider()` and ensure the provider's API key exists.
+3. Resolve the model ID from CLI input, `OPENWIKI_MODEL_ID`, or the provider's default model.
 4. Create a run context from Git state and prior update metadata.
-5. Build the system prompt and user prompt.
-6. Create a DeepAgents `LocalShellBackend` rooted at the repository.
-7. Stream messages and tool events back to the CLI.
-8. For `init` and `update`, write `openwiki/.last-update.json` after success.
+5. Snapshot the current `openwiki/` content hash (before the run).
+6. Build the system prompt and user prompt.
+7. Create the provider-specific model client (`ChatAnthropic`, `ChatOpenRouter`, or `ChatOpenAI`).
+8. Create a DeepAgents `LocalShellBackend` rooted at the repository with a SQLite checkpointer.
+9. Stream messages and tool events back to the CLI.
+10. For `init` and `update`, compare the post-run content snapshot to the pre-run snapshot. Write `openwiki/.last-update.json` **only if the content changed**.
 
-Chat runs skip metadata writes.
+Chat runs skip metadata writes entirely.
+
+## Provider-specific model creation
+
+`createModel()` in `src/agent/index.ts` branches by provider:
+
+- **anthropic**: `new ChatAnthropic(modelId, { apiKey })` — uses `@langchain/anthropic` directly.
+- **openrouter**: `new ChatOpenRouter({ apiKey, baseURL, model, models, route: "fallback", siteName: "OpenWiki" })` — passes a fallback model list so OpenRouter can route around server-side failures.
+- **baseten / fireworks / openai**: `new ChatOpenAI({ apiKey, configuration: { baseURL? }, model })` — OpenAI-compatible clients using the provider's custom base URL when configured.
 
 ## Prompting strategy
 
@@ -24,11 +34,13 @@ Chat runs skip metadata writes.
 - inspect the current codebase and write documentation under `openwiki/`,
 - use filesystem discovery tools and git history rather than inventing facts,
 - keep the initial wiki focused and navigable,
+- avoid thin/slim pages — merge stubs into broader pages rather than creating many small directories,
 - document the repository for both humans and future agents,
 - respect the repository root as the only project in scope,
 - avoid reading secrets or `.env` files,
 - use git history for init and update runs,
-- respect the temporary plan and update metadata requirements.
+- respect the temporary plan file and update metadata requirements,
+- ensure top-level `/AGENTS.md` and/or `/CLAUDE.md` reference the OpenWiki quickstart (inserting or refreshing a standardized section).
 
 The user prompt changes with the command:
 
@@ -42,11 +54,11 @@ The user prompt changes with the command:
 
 - current working tree status,
 - current HEAD,
-- the most recent 20 commits with changed files,
-- a diff summary against HEAD,
-- a delta since the last successful update when `.last-update.json` includes a `gitHead` or `updatedAt`.
+- a change window since the last successful update when `.last-update.json` includes a `gitHead` or `updatedAt`,
+- the most recent 20 commits with changed files for init runs (or updates without prior metadata),
+- a diff summary against HEAD.
 
-On successful init/update runs, the agent writes JSON metadata with:
+On successful init/update runs where content changed, the agent writes JSON metadata with:
 
 - `updatedAt`
 - `command`
@@ -55,15 +67,19 @@ On successful init/update runs, the agent writes JSON metadata with:
 
 That metadata is later used to scope update runs.
 
+### Content snapshot
+
+`createOpenWikiContentSnapshot()` computes a SHA-256 hash of the entire `openwiki/` directory tree (excluding `.last-update.json`). The agent runtime takes a snapshot before and after the run. If they match — meaning the model made no documentation changes — the metadata file is not updated. This prevents scheduled update loops from churning the metadata when the wiki is already current.
+
 ## Model fallback and retries
 
-The agent runtime includes a small retry strategy:
+The agent runtime includes a retry strategy for OpenRouter:
 
 - the selected model is tried first,
-- server-side OpenRouter failures can fall back to `OPENROUTER_FALLBACK_MODEL_IDS`,
-- retries keep the same command and repository context but may use a modified thread ID.
+- server-side OpenRouter failures (HTTP 5xx) fall back through `OPENROUTER_FALLBACK_MODEL_IDS`,
+- retries keep the same command and repository context but use a modified thread ID to avoid checkpointer collisions.
 
-This behavior was added in recent commits to make automated documentation runs more resilient.
+Non-OpenRouter providers do not use the fallback list — only the selected model is attempted.
 
 ## Why this matters
 
@@ -72,13 +88,16 @@ The agent is not just a generic chat wrapper. It is intentionally constrained so
 - write repository-local docs without wandering outside the repo,
 - preserve continuity across runs via checkpointing and metadata,
 - keep updates grounded in Git evidence,
+- avoid metadata churn via the content-snapshot check,
 - support both interactive and scheduled maintenance use cases.
 
 ## Things to watch when changing agent behavior
 
 - Keep the prompt in sync with the actual filesystem tools and path conventions used by the CLI.
 - Be careful with `.last-update.json` semantics, because update runs use it to decide what changed since the previous successful run.
+- The content-snapshot check means a no-op update will not update metadata. If you change the snapshot logic, ensure `.last-update.json` is still excluded.
 - Credential loading happens before model resolution; changes there affect both onboarding and agent startup.
+- When adding a provider, add a branch in `createModel()` and ensure the API key env key is checked in `ensureProviderKey()`.
 - The DeepAgents backend is configured with `virtualMode: true`, which is important for documentation-only behavior.
 
 ## Source map
@@ -89,4 +108,4 @@ The agent is not just a generic chat wrapper. It is intentionally constrained so
 - `src/agent/types.ts`
 - `src/constants.ts`
 - `src/env.ts`
-- Git evidence: commits `ceded10`, `1473a12`, `7bfaeb2`
+- Git evidence: commits `ceded10`, `f89b05d`, `dfa73cc`, `a82759f`, `0fa1430`

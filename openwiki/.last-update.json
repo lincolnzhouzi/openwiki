@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-24T05:44:28.829Z",
-  "command": "init",
-  "gitHead": "ceded101c7128a340ce9a6f8a0b5d472cfd127bf",
-  "model": "openai/gpt-5.4-mini"
+  "updatedAt": "2026-06-30T21:20:03.130Z",
+  "command": "update",
+  "gitHead": "c344dca36e974e67aaa1476474b4b4d43aa6ba7c",
+  "model": "accounts/fireworks/models/glm-5p2"
 }
