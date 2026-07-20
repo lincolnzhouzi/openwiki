@@ -18,6 +18,8 @@ export const OPENAI_CHATGPT_PLAN_ENV_KEY = "OPENAI_CHATGPT_PLAN";
 export const ANTHROPIC_API_KEY_ENV_KEY = "ANTHROPIC_API_KEY";
 export const ANTHROPIC_BASE_URL_ENV_KEY = "ANTHROPIC_BASE_URL";
 export const OPENROUTER_API_KEY_ENV_KEY = "OPENROUTER_API_KEY";
+export const OPENWIKI_OPENROUTER_PROVIDER_ONLY_ENV_KEY =
+  "OPENWIKI_OPENROUTER_PROVIDER_ONLY";
 export const BEDROCK_AWS_ACCESS_KEY_ID_ENV_KEY = "BEDROCK_AWS_ACCESS_KEY_ID";
 export const BEDROCK_AWS_SECRET_ACCESS_KEY_ENV_KEY =
   "BEDROCK_AWS_SECRET_ACCESS_KEY";
@@ -589,6 +591,23 @@ export function resolveProviderRetryAttempts(
   }
 
   return parsedRetryAttempts;
+}
+
+export function resolveOpenRouterProviderOnly(
+  env: NodeJS.ProcessEnv = process.env,
+): string[] | undefined {
+  const rawProviderOnly = env[OPENWIKI_OPENROUTER_PROVIDER_ONLY_ENV_KEY];
+
+  if (rawProviderOnly === undefined) {
+    return undefined;
+  }
+
+  const providers = rawProviderOnly
+    .split(",")
+    .map((provider) => provider.trim())
+    .filter((provider) => provider.length > 0);
+
+  return providers.length > 0 ? providers : undefined;
 }
 
 export function normalizeModelId(value: string): string {
